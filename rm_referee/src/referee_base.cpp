@@ -13,7 +13,7 @@ RefereeBase::RefereeBase(ros::NodeHandle& nh, Base& base) : base_(base), nh_(nh)
   RefereeBase::actuator_state_sub_ =
       nh.subscribe<rm_msgs::ActuatorState>("/actuator_states", 10, &RefereeBase::actuatorStateCallback, this);
   RefereeBase::dbus_sub_ = nh.subscribe<rm_msgs::DbusData>("/dbus_data", 10, &RefereeBase::dbusDataCallback, this);
-  RefereeBase::chassis_cmd_sub_ = nh.subscribe<rm_msgs::ChassisCmd>("/controllers/chassis_controller/command", 10,
+  RefereeBase::chassis_cmd_sub_ = nh.subscribe<rm_msgs::ChassisCmd>("/cmd_chassis", 10,
                                                                     &RefereeBase::chassisCmdDataCallback, this);
   RefereeBase::vel2D_cmd_sub_ =
       nh.subscribe<geometry_msgs::Twist>("/cmd_vel", 10, &RefereeBase::vel2DCmdDataCallback, this);
@@ -93,8 +93,18 @@ RefereeBase::RefereeBase(ros::NodeHandle& nh, Base& base) : base_(base), nh_(nh)
         rotation_time_change_ui_ = new RotationTimeChangeUi(rpc_value[i], base_, &graph_queue_);
       if (rpc_value[i]["name"] == "lane_line")
         lane_line_time_change_ui_ = new LaneLineTimeChangeGroupUi(rpc_value[i], base_, &graph_queue_);
+      if (rpc_value[i]["name"] == "pitch")
+        pitch_angle_time_change_ui_ = new PitchAngleTimeChangeUi(rpc_value[i], base_, &graph_queue_);
       if (rpc_value[i]["name"] == "balance_pitch")
         balance_pitch_time_change_group_ui_ = new BalancePitchTimeChangeGroupUi(rpc_value[i], base_, &graph_queue_);
+      if (rpc_value[i]["name"] == "engineer_joint1")
+        engineer_joint1_time_change_ui = new JointValueTimeChangeUi(rpc_value[i], base_, &graph_queue_,"joint1");
+      if (rpc_value[i]["name"] == "engineer_joint2")
+        engineer_joint2_time_change_ui = new JointValueTimeChangeUi(rpc_value[i], base_, &graph_queue_,"joint2");
+      if (rpc_value[i]["name"] == "engineer_joint3")
+          engineer_joint3_time_change_ui = new JointValueTimeChangeUi(rpc_value[i], base_, &graph_queue_,"joint3");
+      if (rpc_value[i]["name"] == "engineer_tf")
+          engineer_tf_time_change_ui = new SpaceTfTimeChangeGroupUi(rpc_value[i], base_, &graph_queue_,"engineer_tf");
     }
 
     ui_nh.getParam("fixed", rpc_value);
@@ -126,6 +136,18 @@ void RefereeBase::addUi()
   }
 
   ROS_INFO_THROTTLE(0.8, "Adding ui... %.1f%%", (add_ui_times_ / static_cast<double>(add_ui_max_times_)) * 100);
+  if (fixed_ui_)
+      fixed_ui_->add();
+  if (stone_num_trigger_change_ui_)
+      stone_num_trigger_change_ui_->add();
+  if (engineer_joint1_time_change_ui)
+    engineer_joint1_time_change_ui->add();
+  if (engineer_joint2_time_change_ui)
+    engineer_joint2_time_change_ui->add();
+  if (engineer_joint3_time_change_ui)
+    engineer_joint3_time_change_ui->add();
+  if (engineer_tf_time_change_ui)
+    engineer_tf_time_change_ui->add();
   if (chassis_trigger_change_ui_)
     chassis_trigger_change_ui_->add();
   if (gimbal_trigger_change_ui_)
@@ -152,12 +174,8 @@ void RefereeBase::addUi()
     servo_mode_trigger_change_ui_->add();
   if (reversal_state_trigger_change_ui_)
     reversal_state_trigger_change_ui_->add();
-  if (stone_num_trigger_change_ui_)
-    stone_num_trigger_change_ui_->add();
   if (joint_temperature_trigger_change_ui_)
     joint_temperature_trigger_change_ui_->add();
-  if (fixed_ui_)
-    fixed_ui_->add();
   if (effort_time_change_ui_)
     effort_time_change_ui_->add();
   if (progress_time_change_ui_)
@@ -172,6 +190,8 @@ void RefereeBase::addUi()
     lane_line_time_change_ui_->add();
   if (balance_pitch_time_change_group_ui_)
     balance_pitch_time_change_group_ui_->add();
+  if (pitch_angle_time_change_ui_)
+    pitch_angle_time_change_ui_->add();
   add_ui_times_++;
 }
 
@@ -248,12 +268,22 @@ void RefereeBase::eventDataCallBack(const rm_msgs::EventData& data, const ros::T
 }
 void RefereeBase::jointStateCallback(const sensor_msgs::JointState::ConstPtr& data)
 {
+  if (engineer_joint1_time_change_ui && !is_adding_)
+    engineer_joint1_time_change_ui->updateJointStateData(data, ros::Time::now());
+  if (engineer_joint2_time_change_ui && !is_adding_)
+    engineer_joint2_time_change_ui->updateJointStateData(data, ros::Time::now());
+  if (engineer_joint3_time_change_ui && !is_adding_)
+    engineer_joint3_time_change_ui->updateJointStateData(data, ros::Time::now());
+  if (engineer_tf_time_change_ui && !is_adding_)
+    engineer_tf_time_change_ui->updateJointStateData(data, ros::Time::now());
   if (effort_time_change_ui_ && !is_adding_)
     effort_time_change_ui_->updateJointStateData(data, ros::Time::now());
   if (rotation_time_change_ui_ && !is_adding_)
     rotation_time_change_ui_->updateForQueue();
   if (lane_line_time_change_ui_ && !is_adding_)
     lane_line_time_change_ui_->updateJointStateData(data, ros::Time::now());
+  if (pitch_angle_time_change_ui_ && !is_adding_)
+    pitch_angle_time_change_ui_->updateJointStateData(data, ros::Time::now());
 }
 void RefereeBase::actuatorStateCallback(const rm_msgs::ActuatorState::ConstPtr& data)
 {
